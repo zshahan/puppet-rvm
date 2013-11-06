@@ -9,10 +9,9 @@ class rvm::passenger::apache(
   $spawnmethod = 'smart-lv2'
 ) {
 
-  class {
-    'rvm::passenger::gem':
-      ruby_version => $ruby_version,
-      version => $version,
+  class { 'rvm::passenger::gem':
+    ruby_version => $ruby_version,
+    version      => $version,
   }
 
   # TODO: How can we get the gempath automatically using the ruby version
@@ -21,15 +20,15 @@ class rvm::passenger::apache(
   $gempath = "${rvm_prefix}/rvm/gems/${ruby_version}/gems"
   $binpath = "${rvm_prefix}/rvm/bin/"
   $gemroot = "${gempath}/passenger-${version}"
-  $modpath = "${gemroot}/${objdir}/apache2"
 
   # build the Apache module
+  # different passenger versions put the built module in different places (ext, libout, buildout)
   include apache::dev
   exec { 'passenger-install-apache2-module':
     command     => "${rvm::passenger::apache::binpath}rvm ${rvm::passenger::apache::ruby_version} exec passenger-install-apache2-module -a",
-    creates     => "${rvm::passenger::apache::modpath}/mod_passenger.so",
+    unless      => "test -f ${gemroot}/ext/apache2/mod_passenger.so || test -f ${gemroot}/libout/apache2/mod_passenger.so || test -f ${gemroot}/buildout/apache2/mod_passenger.so",
     environment => [ 'HOME=/root', ],
-    logoutput   => 'on_failure',
+    path        => '/usr/bin:/usr/sbin:/bin',
     require     => Class['rvm::passenger::gem','apache::dev'],
   }
 
@@ -38,8 +37,6 @@ class rvm::passenger::apache(
     passenger_ruby           => "${rvm_prefix}/rvm/wrappers/${ruby_version}/ruby",
     passenger_max_pool_size  => $maxpoolsize,
     passenger_pool_idle_time => $poolidletime,
-    passenger_lib_path       => $modpath,
-    passenger_manage_package => false,
     require                  => Exec['passenger-install-apache2-module'],
     subscribe                => Exec['passenger-install-apache2-module'],
   }
